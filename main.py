@@ -20,52 +20,62 @@ class WatermarkApp:
         self.add_button.pack(pady=10)
 
     def upload_image(self):
-        self.filename = filedialog.askopenfilename(title="Select an Image",
-                                                   filetypes=(("jpeg files", "*.jpg"), ("all files", "*.*")))
-        self.image = Image.open(self.filename)
-        self.image_label.configure(text="Image selected: " + os.path.basename(self.filename))
+        self.directory = filedialog.askdirectory(title="Select a Directory")
+        self.image_label.configure(text="Directory selected: " + self.directory)
         self.add_button.configure(state=NORMAL)
 
     def add_watermark(self):
-        # Get image dimensions
-        global date_time
-        width, height = self.image.size
+        # Define font size based on screen resolution
+        font_size = 30
 
-        # Get image exif data
-        exif_data = self.image.getexif()
+        # Loop through all files in directory and subdirectories
+        for subdir, dirs, files in os.walk(self.directory):
+            for file in files:
+                file_path = os.path.join(subdir, file)
 
-        # Check if image has exif data
-        if exif_data:
-            try:
-                date_time = exif_data[306]
-            except:
-                date_time = None
+                # Check if file is an image
+                if file_path.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    image = Image.open(file_path)
 
-        if date_time:
-            watermark_text = date_time
-            font = ImageFont.truetype("arial.ttf", int(width * 0.03))
+                    # Get image dimensions
+                    width, height = image.size
 
-            # Create watermark image with appropriate size
-            text_bbox = ImageDraw.Draw(self.image).textbbox((0, 0), watermark_text, font=font)
-            text_width, text_height = text_bbox[2] - text_bbox[0], text_bbox[3] - text_bbox[1]
-            watermark = Image.new('RGBA', (text_width, text_height), (255, 255, 255, 0))
+                    # Get image exif data
+                    exif_data = image.getexif()
 
-            draw = ImageDraw.Draw(watermark)
-            draw.text((0, 0), watermark_text, font=font, fill=(255, 255, 255, 60))
+                    # Check if image has exif data
+                    if exif_data:
+                        try:
+                            date_time = exif_data[306]
+                        except:
+                            date_time = None
 
-            watermark_pos = (width - text_width, height - 2 * text_height)
-            self.image.paste(watermark, watermark_pos, mask=watermark)
+                    if date_time:
+                        watermark_text = date_time
+                        font = ImageFont.truetype("arial.ttf", font_size)
 
-            # Save image
-            save_file = os.path.join(os.path.dirname(self.filename),
-                                     os.path.splitext(os.path.basename(self.filename))[0] + "_watermarked.jpg")
-            self.image.save(save_file, "JPEG", quality=95)
+                        draw = ImageDraw.Draw(image)
+                        text_bbox = draw.textbbox((0, 0), watermark_text, font=font)
+                        text_width, text_height = text_bbox[2] - text_bbox[0], text_bbox[3] - text_bbox[1]
 
-            self.add_button.configure(state=DISABLED)
-            self.image_label.configure(text="Watermark added. Image saved as: " + os.path.basename(save_file))
+                        watermark = Image.new('RGBA', (text_width + font_size, text_height + font_size), (255, 255, 255, 0))
+                        draw = ImageDraw.Draw(watermark)
 
-        else:
-            self.image_label.configure(text="No EXIF data found. Watermark not added.")
+                        draw.text((-text_bbox[0], -text_bbox[1]), watermark_text, font=font, fill=(255, 255, 255, 60))
+
+                        watermark_pos = (width - text_width - font_size, height - text_height - font_size)
+                        image.paste(watermark, watermark_pos, mask=watermark)
+
+                        # Save image
+                        save_file = os.path.join(subdir, os.path.splitext(file)[0] + "_watermarked.jpg")
+                        image.save(save_file, "JPEG", quality=95)
+
+                        self.image_label.configure(text="Watermark added. Image saved as: " + os.path.basename(save_file))
+
+                    else:
+                        self.image_label.configure(text="No EXIF data found. Watermark not added.")
+
+        self.add_button.configure(state=DISABLED)
 
 
 root = Tk()
